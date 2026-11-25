@@ -1,0 +1,18 @@
+[tasks]
+audit_bmc
+audit_cover
+
+[options]
+audit_bmc: mode bmc
+audit_cover: mode cover
+depth 25
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal buggy_contract.sv
+prep -top buggy_contract
+
+[files]
+buggy_contract.sv

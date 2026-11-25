@@ -1,1 +1,66 @@
+# =============================================================================
+# Git Ignore Configuration: contracts-in-verilog
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. Verilator Simulation Artifacts
+# -----------------------------------------------------------------------------
 obj_dir/
+*.d
+*.o
+*.a
+
+# -----------------------------------------------------------------------------
+# 2. SymbiYosys (SBY) & Yosys Formal Run Directories
+# -----------------------------------------------------------------------------
+# Work directories created during formal verification runs
+buggy_contract/
+buggy_contract_*/
+employment_contract/
+employment_contract_*/
+
+# Generic SBY task directories (BMC, Cover, Prove)
+*_bmc/
+*_cover/
+*_prove/
+
+# -----------------------------------------------------------------------------
+# 3. Waveforms, Traces & SMT Output Dumps
+# -----------------------------------------------------------------------------
+*.vcd
+*.yw
+*.smtc
+*.smt2
+*.il
+*.ys
+*.vlogtb
+logfile.txt
+*.log
+*.sqlite
+status
+status.path
+PASS
+FAIL
+
+# -----------------------------------------------------------------------------
+# 4. OS & Editor Artifacts
+# -----------------------------------------------------------------------------
+.DS_Store
+._*
+.vscode/
+.idea/
+*.swp
+*~
+
+# -----------------------------------------------------------------------------
+# 5. Explicit Safeguards (Preserve Source Code & Legal Specifications)
+# -----------------------------------------------------------------------------
+# Keep all hardware sources and formal configuration files
+!*.sv
+!*.sby
+
+# Strictly preserve ISDA 2002 Master Agreement legal repository
+!isda-2002/
+!isda-2002/**
+!LICENSE
+!README.md
