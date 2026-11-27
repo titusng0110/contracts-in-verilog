@@ -4,6 +4,8 @@
 // Description: Pure Modular SaaS Agreement with Full Hohfeldian Rights/Duties Interface
 // Assumptions: All clauses are facially valid and enforceable under General Contract Law.
 // Target:      Formal Verification (SymbiYosys / Yosys SMTBMC)
+// Architecture: Synchronous Discrete-Time Operationalized Nomodynamics
+//               (No Runtime Reset: Contracts cannot be rebooted. Formation is S_0 at t=0.)
 // ============================================================================
 
 `default_nettype none
@@ -33,11 +35,12 @@ module buggy_contract #(
     parameter int unsigned BILLING_CYCLE_DAYS = 4, // Scaled down for rapid bounded verification
     parameter int unsigned CURE_WINDOW_DAYS   = 2  // Scaled down grace period
 )(
+    // Clock represents the inexorable progression of calendar days.
+    // Notice: NO rst_n pin. Parties cannot unilaterally reboot an executed contract.
     input  logic          clk_day,
-    input  logic          rst_n,
 
     // ========================================================================
-    // PARTY INPUT ACTIONS (Manifestation of Will / Evidentiary Facts)
+    // PARTY INPUT ACTIONS (Manifestation of Will / Evidentiary Facts - Sein)
     // ========================================================================
     input  logic          fact_client_pays_on_due_date,
     input  logic          fact_provider_issues_default_notice,
@@ -45,7 +48,7 @@ module buggy_contract #(
     input  logic          fact_provider_attempts_termination,
 
     // ========================================================================
-    // COMPLETE BILL OF RIGHTS & OBLIGATIONS (Hohfeldian Interface)
+    // COMPLETE BILL OF RIGHTS & OBLIGATIONS (Hohfeldian Interface - Sollen)
     // ========================================================================
     // Overall Public Legal Standing (Observable by Registry / Courts / Escrow)
     output ContractStates contract_state,
@@ -77,21 +80,31 @@ module buggy_contract #(
     logic c4_client_tryto_reinstate_to_active;
     logic c5_provider_tryto_terminate;
 
+    // ========================================================================
+    // CONTRACT FORMATION & EXECUTION (Initial Legal State S_0 at Inception)
+    // ========================================================================
+    // Jurisprudential Principle: Mutual Assent and Consideration bind the parties
+    // at t=0 (The Effective Date). Sequential state elements are initialized once
+    // at the origin of legal time.
+    initial begin
+        contract_state               = STATE_ACTIVE;
+        cycle_day_counter            = 8'd0;
+        c3_days_left_in_cure_period  = 8'd0;
+        `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
+        c3_consecutive_default_count = 8'd0;
+        `endif
+    end
+
     `ifdef FORMAL
-        // Clocked reset harness: enforces reset at cycle 0, released at cycle 1
+        // Temporal Invariant Harness: Guards $past() operators on the initial execution cycle
         reg f_past_valid = 1'b0;
         always_ff @(posedge clk_day) begin
             f_past_valid <= 1'b1;
-            if (!f_past_valid) begin
-                assume (!rst_n);
-            end else begin
-                assume (rst_n);
-            end
         end
 
         // Legal Environment Assumptions (The "Reasonable Party" Framework)
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid) begin
+            if (f_past_valid) begin
                 // 1. Doctrine of Election: Cannot issue notice and demand termination simultaneously.
                 assume (!(fact_provider_issues_default_notice && fact_provider_attempts_termination));
 
@@ -127,16 +140,14 @@ module buggy_contract #(
     // ------------------------------------------------------------------------
 
     // --- SystemVerilog Logic: Clause 1 ---
-    logic [7:0] cycle_day_counter = 8'd0;
+    logic [7:0] cycle_day_counter;
     logic       payment_due_today;
 
     // [Implements Subclause 1.1]: Tracks billing cycle; asserts due date on the final day
     assign payment_due_today = (cycle_day_counter == (BILLING_CYCLE_DAYS - 1));
 
-    always_ff @(posedge clk_day or negedge rst_n) begin
-        if (!rst_n) begin
-            cycle_day_counter <= 8'd0;
-        end else if (contract_state == STATE_ACTIVE) begin
+    always_ff @(posedge clk_day) begin
+        if (contract_state == STATE_ACTIVE) begin
             if (cycle_day_counter >= (BILLING_CYCLE_DAYS - 1)) begin
                 cycle_day_counter <= 8'd0;
             end else begin
@@ -159,7 +170,7 @@ module buggy_contract #(
     // --- Theorem Assertions: Clause 1 ---
     `ifdef FORMAL
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid && $past(rst_n)) begin
+            if (f_past_valid) begin
 
                 // THEOREM 1.1 (Points to Subclause 1.1):
                 // Timely remittance on the due date strictly satisfies the payment duty
@@ -194,34 +205,30 @@ module buggy_contract #(
 
     // [Exposes Pin]: Provider legally possesses the power to issue notice upon active default
     assign c2_provider_POWER_to_serve_default_notice = (contract_state == STATE_ACTIVE) &&
-                                                     c1_fact_payment_default_active;
+                                                       c1_fact_payment_default_active;
 
     // [Implements Subclause 2.1]: Exclusive trigger initiating transition to Default Notice
     assign c2_provider_tryto_serve_default_notice = c2_provider_POWER_to_serve_default_notice &&
-                                               fact_provider_issues_default_notice;
+                                                   fact_provider_issues_default_notice;
 
     // [Exposes Pin]: Contractual status in Default Notice
     assign c2_in_default_notice_status = (contract_state == STATE_DEFAULT_NOTICE);
 
     // [Implements Subclause 2.2]: Directly drives Grace Period output register
-    always_ff @(posedge clk_day or negedge rst_n) begin
-        if (!rst_n) begin
-            c3_days_left_in_cure_period <= 8'd0;
-        end else begin
-            if (c2_provider_tryto_serve_default_notice) begin
-                // [Subclause 2.2 Mandate]: Initiates Grace Period of CURE_WINDOW_DAYS
-                c3_days_left_in_cure_period <= CURE_WINDOW_DAYS[7:0];
-            end else if (clause_3_decrements_cure_timer) begin
-                // Controlled strictly by Clause 3.2 logic below
-                c3_days_left_in_cure_period <= c3_days_left_in_cure_period - 1'b1;
-            end
+    always_ff @(posedge clk_day) begin
+        if (c2_provider_tryto_serve_default_notice) begin
+            // [Subclause 2.2 Mandate]: Initiates Grace Period of CURE_WINDOW_DAYS
+            c3_days_left_in_cure_period <= CURE_WINDOW_DAYS[7:0];
+        end else if (clause_3_decrements_cure_timer) begin
+            // Controlled strictly by Clause 3.2 logic below
+            c3_days_left_in_cure_period <= c3_days_left_in_cure_period - 1'b1;
         end
     end
 
     // --- Theorem Assertions: Clause 2 ---
     `ifdef FORMAL
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid && $past(rst_n)) begin
+            if (f_past_valid) begin
 
                 // THEOREM 2.1 (Points to Subclause 2.1):
                 // Exercise of notice power initiates transition to Default Notice status.
@@ -275,8 +282,8 @@ module buggy_contract #(
         `else
             // DRAFTING RIGOR: Subordinated to Clause 5 termination right
             assign c3_client_POWER_to_cure = (contract_state == STATE_DEFAULT_NOTICE) &&
-                                                  (c3_days_left_in_cure_period > 8'd0) &&
-                                                  !c5_provider_POWER_to_terminate;
+                                             (c3_days_left_in_cure_period > 8'd0) &&
+                                             !c5_provider_POWER_to_terminate;
         `endif
     `else
         // Unpatched naive boilerplate: no concept of Clause 5 overriding the cure right
@@ -292,10 +299,8 @@ module buggy_contract #(
 
     // [Implements Subclause 3.3]: ONLY exists when the drafting patch is active!
     `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
-        always_ff @(posedge clk_day or negedge rst_n) begin
-            if (!rst_n) begin
-                c3_consecutive_default_count <= 8'd0;
-            end else if (c2_provider_tryto_serve_default_notice) begin
+        always_ff @(posedge clk_day) begin
+            if (c2_provider_tryto_serve_default_notice) begin
                 c3_consecutive_default_count <= c3_consecutive_default_count + 1'b1;
             end
         end
@@ -307,7 +312,7 @@ module buggy_contract #(
     // --- Theorem Assertions: Clause 3 ---
     `ifdef FORMAL
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid && $past(rst_n)) begin
+            if (f_past_valid) begin
 
                 // THEOREM 3.1 (Points to Subclause 3.1):
                 // Tendering cure while cure right is active strictly asserts valid cure event.
@@ -362,7 +367,7 @@ module buggy_contract #(
             // --- DRAFTING RIGOR: SUBJECT TO CLAUSE 5 ---
             // Properly subordinated: Restitution granted ONLY IF Clause 5 termination is NOT active!
             assign c4_client_CLAIM_to_active_reinstatement = c4_fact_default_waived &&
-                                                                   !c5_provider_POWER_to_terminate;
+                                                             !c5_provider_POWER_to_terminate;
         `endif
     `else
         // Unpatched naive boilerplate: no concept of Clause 5 overriding restitution
@@ -376,7 +381,7 @@ module buggy_contract #(
     // --- Theorem Assertions: Clause 4 ---
     `ifdef FORMAL
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid && $past(rst_n)) begin
+            if (f_past_valid) begin
 
                 // THEOREM 4.1 (Points to Subclause 4.1):
                 // Legal rectification strictly extinguishes Default Notice standing on next day.
@@ -416,7 +421,7 @@ module buggy_contract #(
 
     // --- SystemVerilog Logic: Clause 5 ---
     always_comb begin
-        c5_provider_POWER_to_terminate     = 1'b0;
+        c5_provider_POWER_to_terminate      = 1'b0;
         c5_client_IMMUNITY_from_termination = 1'b0;
 
         `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
@@ -469,7 +474,7 @@ module buggy_contract #(
     // --- Theorem Assertions: Clause 5 ---
     `ifdef FORMAL
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid && $past(rst_n)) begin
+            if (f_past_valid) begin
 
                 // THEOREM 5.1 (Points to Subclause 5.1):
                 if ($past(contract_state == STATE_DEFAULT_NOTICE) && ($past(c3_days_left_in_cure_period) == 8'd0)) begin
@@ -508,34 +513,30 @@ module buggy_contract #(
     // PRIMARY STATE ARBITER (Neutral Execution Core)
     // Synchronous 1-Process State Machine driving output register directly
     // ========================================================================
-    always_ff @(posedge clk_day or negedge rst_n) begin
-        if (!rst_n) begin
-            contract_state <= STATE_ACTIVE;
-        end else begin
-            case (contract_state)
-                STATE_ACTIVE: begin
-                    if (c5_provider_tryto_terminate) begin
-                        contract_state <= STATE_TERMINATED;
-                    end else if (c2_provider_tryto_serve_default_notice) begin
-                        contract_state <= STATE_DEFAULT_NOTICE;
-                    end
+    always_ff @(posedge clk_day) begin
+        case (contract_state)
+            STATE_ACTIVE: begin
+                if (c5_provider_tryto_terminate) begin
+                    contract_state <= STATE_TERMINATED;
+                end else if (c2_provider_tryto_serve_default_notice) begin
+                    contract_state <= STATE_DEFAULT_NOTICE;
                 end
+            end
 
-                STATE_DEFAULT_NOTICE: begin
-                    if (c5_provider_tryto_terminate) begin
-                        contract_state <= STATE_TERMINATED;
-                    end else if (c4_client_tryto_reinstate_to_active) begin
-                        contract_state <= STATE_ACTIVE;
-                    end
+            STATE_DEFAULT_NOTICE: begin
+                if (c5_provider_tryto_terminate) begin
+                    contract_state <= STATE_TERMINATED;
+                end else if (c4_client_tryto_reinstate_to_active) begin
+                    contract_state <= STATE_ACTIVE;
                 end
+            end
 
-                STATE_TERMINATED: begin
-                    contract_state <= STATE_TERMINATED; // Absorbing sink state
-                end
+            STATE_TERMINATED: begin
+                contract_state <= STATE_TERMINATED; // Absorbing sink state
+            end
 
-                default: contract_state <= STATE_ACTIVE;
-            endcase
-        end
+            default: contract_state <= STATE_ACTIVE;
+        endcase
     end
 
 
@@ -544,7 +545,7 @@ module buggy_contract #(
     // ========================================================================
     `ifdef FORMAL
         always_ff @(posedge clk_day) begin
-            if (rst_n && f_past_valid) begin
+            if (f_past_valid) begin
 
                 // ============================================================
                 // PART 1: MANDATORY DUE PROCESS & FAIRNESS ASSERTS (The Rules)
