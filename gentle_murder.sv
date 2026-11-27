@@ -42,8 +42,9 @@ module gentle_murder (
         citizen_DUTY_to_kill_gently = 1'b0; // There is always no duty to kill gently
         if (fact_citizen_kills) begin
             // UNCOMMENT the following line to trigger paradox
-            // citizen_DUTY_to_kill = 1'b1; // If the citizen kills, then they have a duty to kill,
-            // an error of drafting by Forrester. That's why it is a paradox! will be caught by SimbiYosys.
+            // citizen_DUTY_to_kill_gently = 1'b1; // If the citizen kills, then they have a duty to kill gently.
+            // an error of drafting by Forrester. The law NEVER said there is a duty to kill gently.
+            // That's why it is a paradox! Will be caught by SimbiYosys.
             citizen_standing = fact_killing_is_gentle ?
                                STANDING_GUILTY_BASIC_MURDER :
                                STANDING_GUILTY_AGGRAVATED_MURDER;
