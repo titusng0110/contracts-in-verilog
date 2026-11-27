@@ -47,7 +47,7 @@ module gentle_murder (
             // That's why it is a paradox! Will be caught by SimbiYosys.
             citizen_standing = fact_killing_is_gentle ?
                                STANDING_GUILTY_BASIC_MURDER :
-                               STANDING_GUILTY_AGGRAVATED_MURDER;
+                               STANDING_GUILTY_AGGRAVATED_MURDER; // gentle killing is merely a mitigating factor, still guilty of murder
         end
 
         // 2. Decode Operative Hohfeldian Entitlements:
