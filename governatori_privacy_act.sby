@@ -1,0 +1,16 @@
+[tasks]
+audit_bmc
+
+[options]
+audit_bmc: mode bmc
+depth 20
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal governatori_privacy_act.sv
+prep -top governatori_privacy_act
+
+[files]
+governatori_privacy_act.sv

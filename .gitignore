@@ -18,6 +18,8 @@ buggy_contract/
 buggy_contract_*/
 gentle_murder/
 gentle_murder_*/
+governatori_privacy_act/
+governatori_privacy_act_*/
 
 # Generic SBY task directories (BMC, Cover, Prove)
 *_bmc/
