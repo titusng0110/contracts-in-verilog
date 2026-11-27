@@ -28,7 +28,7 @@ typedef enum logic [1:0] {
 // 2. Uncomment to demonstrate the classic drafting error of forgetting
 //    the cross-referencing "Subject to Clause 5.4" in Clauses 3.1 and 4.2!
 //    (Watch SymbiYosys catch the cross-clause collision at Step 17):
-// `define FORGOT_SUBJECT_TO_CLAUSE_5_4
+`define FORGOT_SUBJECT_TO_CLAUSE_5_4
 
 
 module buggy_contract #(
@@ -64,7 +64,9 @@ module buggy_contract #(
     // Clause 3: Cure Rights, Timers & Chronic Breach Record
     output logic          c3_client_POWER_to_cure,
     output logic [7:0]    c3_days_left_in_cure_period,
+    `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
     output logic [7:0]    c3_consecutive_default_count,
+    `endif
 
     // Clause 4: Rectification Waivers & Restitution Entitlements
     output logic          c4_fact_default_waived,
@@ -306,7 +308,6 @@ module buggy_contract #(
         end
     `else
         // In the unpatched contract, Subclause 3.3 literally does not exist.
-        assign c3_consecutive_default_count = 8'd0;
     `endif
 
     // --- Theorem Assertions: Clause 3 ---
@@ -483,18 +484,33 @@ module buggy_contract #(
                 end
 
                 // THEOREM 5.2 (Points to Subclause 5.2):
+                `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
                 if ($past(contract_state == STATE_ACTIVE) && ($past(c3_consecutive_default_count) < 8'd3)) begin
                     assert ($past(c5_client_IMMUNITY_from_termination));
                     assert (!$past(c5_provider_POWER_to_terminate));
                 end
+                `else
+                if ($past(contract_state == STATE_ACTIVE)) begin
+                    assert ($past(c5_client_IMMUNITY_from_termination));
+                    assert (!$past(c5_provider_POWER_to_terminate));
+                end
+                `endif
 
                 // THEOREM 5.3 (Points to Subclause 5.3):
+                `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
                 if ($past(contract_state == STATE_DEFAULT_NOTICE) &&
                     ($past(c3_consecutive_default_count) < 8'd3) &&
                     ($past(c3_days_left_in_cure_period) > 8'd0)) begin
                     assert ($past(c5_client_IMMUNITY_from_termination));
                     assert (!$past(c5_provider_POWER_to_terminate));
                 end
+                `else
+                if ($past(contract_state == STATE_DEFAULT_NOTICE) &&
+                    ($past(c3_days_left_in_cure_period) > 8'd0)) begin
+                    assert ($past(c5_client_IMMUNITY_from_termination));
+                    assert (!$past(c5_provider_POWER_to_terminate));
+                end
+                `endif
 
                 `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
                     // THEOREM 5.4 (Points to Subclause 5.4):
@@ -554,10 +570,17 @@ module buggy_contract #(
                 // ASSERT 1 (Borrower Due Process - No Peacetime Ambush):
                 // "The Lender CANNOT have the right to terminate while the contract
                 //  is in Active good standing!"
-                if ((contract_state == STATE_ACTIVE) && (c3_consecutive_default_count == 8'd0)) begin
+                `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
+                if ((contract_state == STATE_ACTIVE) && (c3_consecutive_default_count < 8'd3)) begin
                     assert (!c5_provider_POWER_to_terminate);
                     assert (c5_client_IMMUNITY_from_termination);
                 end
+                `else
+                if (contract_state == STATE_ACTIVE) begin
+                    assert (!c5_provider_POWER_to_terminate);
+                    assert (c5_client_IMMUNITY_from_termination);
+                end
+                `endif
 
                 // ASSERT 2 (Borrower Sacred Grace - Mutual Exclusivity):
                 // "If the Borrower has the legal right to cure, the Lender
