@@ -35,9 +35,8 @@ module gentle_murder (
     // ========================================================================
     always_comb begin
         // 1. Classify Legal Standing:
-        if (!fact_citizen_kills) begin
-            citizen_standing = STANDING_INNOCENT;
-        end else begin
+        citizen_standing = STANDING_INNOCENT; // Default to Innocent
+        if (fact_citizen_kills) begin
             citizen_standing = fact_killing_is_gentle ?
                                STANDING_GUILTY_BASIC_MURDER :
                                STANDING_GUILTY_AGGRAVATED_MURDER;
