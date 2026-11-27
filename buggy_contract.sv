@@ -51,31 +51,31 @@ module buggy_contract #(
     output ContractStates contract_state,
 
     // Clause 1: Periodic Payment Duties & Default Status
-    output logic          clause_1_client_duty_to_pay_today,
-    output logic          clause_1_payment_default_active,
+    output logic          c1_client_DUTY_to_pay,
+    output logic          c1_fact_payment_default_active,
 
     // Clause 2: Default Notice Powers & Status
-    output logic          clause_2_provider_right_to_issue_notice,
-    output logic          clause_2_in_default_notice_status,
+    output logic          c2_provider_POWER_to_serve_default_notice,
+    output logic          c2_in_default_notice_status,
 
     // Clause 3: Cure Rights, Timers & Chronic Breach Record
-    output logic          clause_3_client_right_to_cure,
-    output logic [7:0]    clause_3_days_left_in_cure_period,
-    output logic [7:0]    clause_3_consecutive_default_count,
+    output logic          c3_client_POWER_to_cure,
+    output logic [7:0]    c3_days_left_in_cure_period,
+    output logic [7:0]    c3_consecutive_default_count,
 
     // Clause 4: Rectification Waivers & Restitution Entitlements
-    output logic          clause_4_payment_default_waived,
-    output logic          clause_4_client_entitled_to_active_restitution,
+    output logic          c4_fact_default_waived,
+    output logic          c4_client_CLAIM_to_active_reinstatement,
 
     // Clause 5: Termination Powers & Unlawful Termination Prohibitions
-    output logic          clause_5_provider_right_to_terminate,
-    output logic          clause_5_provider_termination_prohibited
+    output logic          c5_provider_POWER_to_terminate,
+    output logic          c5_client_IMMUNITY_from_termination
 );
 
     // Independent transition triggers owned exclusively by individual clauses
-    logic clause_2_initiates_default_notice;
-    logic clause_4_restitutes_to_active;
-    logic clause_5_initiates_termination;
+    logic c2_provider_tryto_serve_default_notice;
+    logic c4_client_tryto_reinstate_to_active;
+    logic c5_provider_tryto_terminate;
 
     `ifdef FORMAL
         // Clocked reset harness: enforces reset at cycle 0, released at cycle 1
@@ -96,7 +96,7 @@ module buggy_contract #(
                 assume (!(fact_provider_issues_default_notice && fact_provider_attempts_termination));
 
                 // 2. Doctrine of Wrongful Notice: Notice requires an actual payment default.
-                assume (!fact_provider_issues_default_notice || clause_1_payment_default_active);
+                assume (!fact_provider_issues_default_notice || c1_fact_payment_default_active);
 
                 // 3. Performance Consistency: Cannot pay on time and cure default on the same day.
                 assume (!(fact_client_pays_on_due_date && fact_client_cures_default));
@@ -146,13 +146,13 @@ module buggy_contract #(
     end
 
     // [Exposes Pin]: The Client's affirmative duty to pay is active today
-    assign clause_1_client_duty_to_pay_today = (contract_state == STATE_ACTIVE) && payment_due_today;
+    assign c1_client_DUTY_to_pay = (contract_state == STATE_ACTIVE) && payment_due_today;
 
     // [Implements Subclause 1.2]: Non-payment on due date triggers payment default directly on output pin
     always_comb begin
-        clause_1_payment_default_active = 1'b0;
-        if (clause_1_client_duty_to_pay_today && !fact_client_pays_on_due_date) begin
-            clause_1_payment_default_active = 1'b1;
+        c1_fact_payment_default_active = 1'b0;
+        if (c1_client_DUTY_to_pay && !fact_client_pays_on_due_date) begin
+            c1_fact_payment_default_active = 1'b1;
         end
     end
 
@@ -164,14 +164,14 @@ module buggy_contract #(
                 // THEOREM 1.1 (Points to Subclause 1.1):
                 // Timely remittance on the due date strictly satisfies the payment duty
                 // and prevents the occurrence of an active Payment Default.
-                if ($past(clause_1_client_duty_to_pay_today) && $past(fact_client_pays_on_due_date)) begin
-                    assert (!$past(clause_1_payment_default_active));
+                if ($past(c1_client_DUTY_to_pay) && $past(fact_client_pays_on_due_date)) begin
+                    assert (!$past(c1_fact_payment_default_active));
                 end
 
                 // THEOREM 1.2 (Points to Subclause 1.2):
                 // Failure to remit when duty is active strictly asserts Payment Default.
-                if ($past(clause_1_client_duty_to_pay_today) && !$past(fact_client_pays_on_due_date)) begin
-                    assert ($past(clause_1_payment_default_active));
+                if ($past(c1_client_DUTY_to_pay) && !$past(fact_client_pays_on_due_date)) begin
+                    assert ($past(c1_fact_payment_default_active));
                 end
 
             end
@@ -193,27 +193,27 @@ module buggy_contract #(
     logic clause_3_decrements_cure_timer; // Driven by Clause 3.2 logic below
 
     // [Exposes Pin]: Provider legally possesses the power to issue notice upon active default
-    assign clause_2_provider_right_to_issue_notice = (contract_state == STATE_ACTIVE) &&
-                                                     clause_1_payment_default_active;
+    assign c2_provider_POWER_to_serve_default_notice = (contract_state == STATE_ACTIVE) &&
+                                                     c1_fact_payment_default_active;
 
     // [Implements Subclause 2.1]: Exclusive trigger initiating transition to Default Notice
-    assign clause_2_initiates_default_notice = clause_2_provider_right_to_issue_notice &&
+    assign c2_provider_tryto_serve_default_notice = c2_provider_POWER_to_serve_default_notice &&
                                                fact_provider_issues_default_notice;
 
     // [Exposes Pin]: Contractual status in Default Notice
-    assign clause_2_in_default_notice_status = (contract_state == STATE_DEFAULT_NOTICE);
+    assign c2_in_default_notice_status = (contract_state == STATE_DEFAULT_NOTICE);
 
     // [Implements Subclause 2.2]: Directly drives Grace Period output register
     always_ff @(posedge clk_day or negedge rst_n) begin
         if (!rst_n) begin
-            clause_3_days_left_in_cure_period <= 8'd0;
+            c3_days_left_in_cure_period <= 8'd0;
         end else begin
-            if (clause_2_initiates_default_notice) begin
+            if (c2_provider_tryto_serve_default_notice) begin
                 // [Subclause 2.2 Mandate]: Initiates Grace Period of CURE_WINDOW_DAYS
-                clause_3_days_left_in_cure_period <= CURE_WINDOW_DAYS[7:0];
+                c3_days_left_in_cure_period <= CURE_WINDOW_DAYS[7:0];
             end else if (clause_3_decrements_cure_timer) begin
                 // Controlled strictly by Clause 3.2 logic below
-                clause_3_days_left_in_cure_period <= clause_3_days_left_in_cure_period - 1'b1;
+                c3_days_left_in_cure_period <= c3_days_left_in_cure_period - 1'b1;
             end
         end
     end
@@ -225,15 +225,15 @@ module buggy_contract #(
 
                 // THEOREM 2.1 (Points to Subclause 2.1):
                 // Exercise of notice power initiates transition to Default Notice status.
-                if ($past(clause_2_initiates_default_notice)) begin
+                if ($past(c2_provider_tryto_serve_default_notice)) begin
                     assert (contract_state == STATE_DEFAULT_NOTICE);
                 end
 
                 // THEOREM 2.2 (Points to Subclause 2.2):
                 // Entry into Default Notice strictly initializes Grace Period to CURE_WINDOW_DAYS.
                 if ($past(contract_state == STATE_ACTIVE) && (contract_state == STATE_DEFAULT_NOTICE)) begin
-                    assert (clause_3_days_left_in_cure_period == CURE_WINDOW_DAYS[7:0]);
-                    assert (clause_2_in_default_notice_status);
+                    assert (c3_days_left_in_cure_period == CURE_WINDOW_DAYS[7:0]);
+                    assert (c2_in_default_notice_status);
                 end
 
             end
@@ -263,7 +263,7 @@ module buggy_contract #(
     // Asserts when the Client actually sends cure payment while the Grace Period is running.
     assign clause_3_client_tenders_timely_cure = (contract_state == STATE_DEFAULT_NOTICE) &&
                                                  fact_client_cures_default &&
-                                                 (clause_3_days_left_in_cure_period > 8'd0);
+                                                 (c3_days_left_in_cure_period > 8'd0);
 
     // [Implements Subclause 3.1 - Legal Entitlement]:
     // The Client has the legal right to cure while in default notice, timer is alive,
@@ -271,37 +271,37 @@ module buggy_contract #(
     `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
         `ifdef FORGOT_SUBJECT_TO_CLAUSE_5_4
             // DRAFTING MALPRACTICE: Lawyer forgot the Clause 5 proviso!
-            assign clause_3_client_right_to_cure = (contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period > 8'd0);
+            assign c3_client_POWER_to_cure = (contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period > 8'd0);
         `else
             // DRAFTING RIGOR: Subordinated to Clause 5 termination right
-            assign clause_3_client_right_to_cure = (contract_state == STATE_DEFAULT_NOTICE) &&
-                                                  (clause_3_days_left_in_cure_period > 8'd0) &&
-                                                  !clause_5_provider_right_to_terminate;
+            assign c3_client_POWER_to_cure = (contract_state == STATE_DEFAULT_NOTICE) &&
+                                                  (c3_days_left_in_cure_period > 8'd0) &&
+                                                  !c5_provider_POWER_to_terminate;
         `endif
     `else
         // Unpatched naive boilerplate: no concept of Clause 5 overriding the cure right
-        assign clause_3_client_right_to_cure = (contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period > 8'd0);
+        assign c3_client_POWER_to_cure = (contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period > 8'd0);
     `endif
 
     // [Implements Subclause 3.1 - Effective Legal Cure]:
     // A cure is legally valid only if the Client possessed the legal right to cure!
-    assign clause_3_valid_cure_tendered = clause_3_client_right_to_cure && fact_client_cures_default;
+    assign clause_3_valid_cure_tendered = c3_client_POWER_to_cure && fact_client_cures_default;
 
     // [Implements Subclause 3.2]: Control signal commanding daily Grace Period countdown
-    assign clause_3_decrements_cure_timer = (contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period > 8'd0);
+    assign clause_3_decrements_cure_timer = (contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period > 8'd0);
 
     // [Implements Subclause 3.3]: ONLY exists when the drafting patch is active!
     `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
         always_ff @(posedge clk_day or negedge rst_n) begin
             if (!rst_n) begin
-                clause_3_consecutive_default_count <= 8'd0;
-            end else if (clause_2_initiates_default_notice) begin
-                clause_3_consecutive_default_count <= clause_3_consecutive_default_count + 1'b1;
+                c3_consecutive_default_count <= 8'd0;
+            end else if (c2_provider_tryto_serve_default_notice) begin
+                c3_consecutive_default_count <= c3_consecutive_default_count + 1'b1;
             end
         end
     `else
         // In the unpatched contract, Subclause 3.3 literally does not exist.
-        assign clause_3_consecutive_default_count = 8'd0;
+        assign c3_consecutive_default_count = 8'd0;
     `endif
 
     // --- Theorem Assertions: Clause 3 ---
@@ -311,21 +311,21 @@ module buggy_contract #(
 
                 // THEOREM 3.1 (Points to Subclause 3.1):
                 // Tendering cure while cure right is active strictly asserts valid cure event.
-                if (clause_3_client_right_to_cure && fact_client_cures_default) begin
+                if (c3_client_POWER_to_cure && fact_client_cures_default) begin
                     assert (clause_3_valid_cure_tendered);
                 end
 
                 // THEOREM 3.2 (Points to Subclause 3.2):
                 // Grace Period counter strictly decrements by 1 each day while remaining in default notice.
-                if ($past(contract_state == STATE_DEFAULT_NOTICE) && (contract_state == STATE_DEFAULT_NOTICE) && ($past(clause_3_days_left_in_cure_period) > 8'd0)) begin
-                    assert (clause_3_days_left_in_cure_period == ($past(clause_3_days_left_in_cure_period) - 1'b1));
+                if ($past(contract_state == STATE_DEFAULT_NOTICE) && (contract_state == STATE_DEFAULT_NOTICE) && ($past(c3_days_left_in_cure_period) > 8'd0)) begin
+                    assert (c3_days_left_in_cure_period == ($past(c3_days_left_in_cure_period) - 1'b1));
                 end
 
                 `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
                     // THEOREM 3.3 (Points to Subclause 3.3):
                     // When the patch is active, default record strictly increments by 1 on each notice.
-                    if ($past(clause_2_initiates_default_notice)) begin
-                        assert (clause_3_consecutive_default_count == ($past(clause_3_consecutive_default_count) + 1'b1));
+                    if ($past(c2_provider_tryto_serve_default_notice)) begin
+                        assert (c3_consecutive_default_count == ($past(c3_consecutive_default_count) + 1'b1));
                     end
                 `endif
 
@@ -340,16 +340,16 @@ module buggy_contract #(
     // [Legal Clause Text]:
     // 4.1 Upon receipt of the cure payment prior to the expiration of the Grace
     //     Period, the Payment Default shall be deemed fully cured, waived, and rectified
-    //     (clause_4_payment_default_waived).
+    //     (c4_fact_default_waived).
     // 4.2 [Subject to Clause 5 (Termination),] the contract shall immediately return
     //     to Active status, and the parties shall resume performance as if no default had occurred
-    //     (clause_4_client_entitled_to_active_restitution).
+    //     (c4_client_CLAIM_to_active_reinstatement).
     // ------------------------------------------------------------------------
 
     // --- SystemVerilog Logic: Clause 4 ---
 
     // [Implements Subclause 4.1]: Legal waiver and rectification of the default event
-    assign clause_4_payment_default_waived = clause_3_valid_cure_tendered;
+    assign c4_fact_default_waived = clause_3_valid_cure_tendered;
 
     // [Implements Subclause 4.2]: Entitlement to Active status is SUBJECT TO Clause 5!
     `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
@@ -357,20 +357,20 @@ module buggy_contract #(
             // --- DRAFTING MALPRACTICE (BUG INJECTED) ---
             // Lawyer forgot "Subject to Clause 5" in 4.2!
             // Blindly grants Active restitution even when Clause 5 is terminating!
-            assign clause_4_client_entitled_to_active_restitution = clause_4_payment_default_waived;
+            assign c4_client_CLAIM_to_active_reinstatement = c4_fact_default_waived;
         `else
             // --- DRAFTING RIGOR: SUBJECT TO CLAUSE 5 ---
             // Properly subordinated: Restitution granted ONLY IF Clause 5 termination is NOT active!
-            assign clause_4_client_entitled_to_active_restitution = clause_4_payment_default_waived &&
-                                                                   !clause_5_provider_right_to_terminate;
+            assign c4_client_CLAIM_to_active_reinstatement = c4_fact_default_waived &&
+                                                                   !c5_provider_POWER_to_terminate;
         `endif
     `else
         // Unpatched naive boilerplate: no concept of Clause 5 overriding restitution
-        assign clause_4_client_entitled_to_active_restitution = clause_4_payment_default_waived;
+        assign c4_client_CLAIM_to_active_reinstatement = c4_fact_default_waived;
     `endif
 
     // [Trigger to State Arbiter]: Requests physical transition to STATE_ACTIVE
-    assign clause_4_restitutes_to_active = clause_4_client_entitled_to_active_restitution;
+    assign c4_client_tryto_reinstate_to_active = c4_client_CLAIM_to_active_reinstatement;
 
 
     // --- Theorem Assertions: Clause 4 ---
@@ -380,13 +380,13 @@ module buggy_contract #(
 
                 // THEOREM 4.1 (Points to Subclause 4.1):
                 // Legal rectification strictly extinguishes Default Notice standing on next day.
-                if ($past(clause_4_payment_default_waived)) begin
-                    assert (!clause_2_in_default_notice_status);
+                if ($past(c4_fact_default_waived)) begin
+                    assert (!c2_in_default_notice_status);
                 end
 
                 // THEOREM 4.2 (Points to Subclause 4.2):
                 // Valid entitlement to restitution strictly guarantees restoration of Active standing!
-                if ($past(clause_4_client_entitled_to_active_restitution)) begin
+                if ($past(c4_client_CLAIM_to_active_reinstatement)) begin
                     assert (contract_state == STATE_ACTIVE);
                 end
 
@@ -416,52 +416,52 @@ module buggy_contract #(
 
     // --- SystemVerilog Logic: Clause 5 ---
     always_comb begin
-        clause_5_provider_right_to_terminate     = 1'b0;
-        clause_5_provider_termination_prohibited = 1'b0;
+        c5_provider_POWER_to_terminate     = 1'b0;
+        c5_client_IMMUNITY_from_termination = 1'b0;
 
         `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
             // [Implements Subclause 5.4]:
-            if (clause_3_consecutive_default_count >= 8'd3) begin
-                clause_5_provider_right_to_terminate = 1'b1;
+            if (c3_consecutive_default_count >= 8'd3) begin
+                c5_provider_POWER_to_terminate = 1'b1;
             end else begin
                 // [Implements Subclause 5.2]:
                 if (contract_state == STATE_ACTIVE) begin
-                    clause_5_provider_termination_prohibited = 1'b1;
+                    c5_client_IMMUNITY_from_termination = 1'b1;
                 end
 
                 // [Implements Subclause 5.3]:
-                if ((contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period > 8'd0)) begin
-                    clause_5_provider_termination_prohibited = 1'b1;
+                if ((contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period > 8'd0)) begin
+                    c5_client_IMMUNITY_from_termination = 1'b1;
                 end
 
                 // [Implements Subclause 5.1]:
-                if ((contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period == 8'd0)) begin
-                    clause_5_provider_right_to_terminate = 1'b1;
+                if ((contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period == 8'd0)) begin
+                    c5_provider_POWER_to_terminate = 1'b1;
                 end
             end
         `else
             // [Implements Subclause 5.2 (Unpatched Boilerplate)]:
             if (contract_state == STATE_ACTIVE) begin
-                clause_5_provider_termination_prohibited = 1'b1;
+                c5_client_IMMUNITY_from_termination = 1'b1;
             end
 
             // [Implements Subclause 5.3 (Unpatched Boilerplate)]:
-            if ((contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period > 8'd0)) begin
-                clause_5_provider_termination_prohibited = 1'b1;
+            if ((contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period > 8'd0)) begin
+                c5_client_IMMUNITY_from_termination = 1'b1;
             end
 
             // [Implements Subclause 5.1 (Unpatched Boilerplate)]:
-            if ((contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period == 8'd0)) begin
-                clause_5_provider_right_to_terminate = 1'b1;
+            if ((contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period == 8'd0)) begin
+                c5_provider_POWER_to_terminate = 1'b1;
             end
         `endif
     end
 
     // [Implements Subclause 5.1 (Automatic) & Subclause 5.4 (Elective) Termination Triggers]:
-    assign clause_5_initiates_termination =
-        ((contract_state == STATE_DEFAULT_NOTICE) && (clause_3_days_left_in_cure_period == 8'd0))
+    assign c5_provider_tryto_terminate =
+        ((contract_state == STATE_DEFAULT_NOTICE) && (c3_days_left_in_cure_period == 8'd0))
         `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
-        || (clause_5_provider_right_to_terminate && fact_provider_attempts_termination)
+        || (c5_provider_POWER_to_terminate && fact_provider_attempts_termination)
         `endif
         ;
 
@@ -472,30 +472,30 @@ module buggy_contract #(
             if (rst_n && f_past_valid && $past(rst_n)) begin
 
                 // THEOREM 5.1 (Points to Subclause 5.1):
-                if ($past(contract_state == STATE_DEFAULT_NOTICE) && ($past(clause_3_days_left_in_cure_period) == 8'd0)) begin
-                    assert ($past(clause_5_provider_right_to_terminate));
+                if ($past(contract_state == STATE_DEFAULT_NOTICE) && ($past(c3_days_left_in_cure_period) == 8'd0)) begin
+                    assert ($past(c5_provider_POWER_to_terminate));
                     assert (contract_state == STATE_TERMINATED);
                 end
 
                 // THEOREM 5.2 (Points to Subclause 5.2):
-                if ($past(contract_state == STATE_ACTIVE) && ($past(clause_3_consecutive_default_count) < 8'd3)) begin
-                    assert ($past(clause_5_provider_termination_prohibited));
-                    assert (!$past(clause_5_provider_right_to_terminate));
+                if ($past(contract_state == STATE_ACTIVE) && ($past(c3_consecutive_default_count) < 8'd3)) begin
+                    assert ($past(c5_client_IMMUNITY_from_termination));
+                    assert (!$past(c5_provider_POWER_to_terminate));
                 end
 
                 // THEOREM 5.3 (Points to Subclause 5.3):
                 if ($past(contract_state == STATE_DEFAULT_NOTICE) &&
-                    ($past(clause_3_consecutive_default_count) < 8'd3) &&
-                    ($past(clause_3_days_left_in_cure_period) > 8'd0)) begin
-                    assert ($past(clause_5_provider_termination_prohibited));
-                    assert (!$past(clause_5_provider_right_to_terminate));
+                    ($past(c3_consecutive_default_count) < 8'd3) &&
+                    ($past(c3_days_left_in_cure_period) > 8'd0)) begin
+                    assert ($past(c5_client_IMMUNITY_from_termination));
+                    assert (!$past(c5_provider_POWER_to_terminate));
                 end
 
                 `ifdef CLAUSE_5_4_PATCH_HABITUAL_DEFAULT_LOOPHOLE
                     // THEOREM 5.4 (Points to Subclause 5.4):
-                    if ($past(clause_3_consecutive_default_count >= 8'd3)) begin
-                        assert ($past(clause_5_provider_right_to_terminate));
-                        assert (!$past(clause_5_provider_termination_prohibited));
+                    if ($past(c3_consecutive_default_count >= 8'd3)) begin
+                        assert ($past(c5_provider_POWER_to_terminate));
+                        assert (!$past(c5_client_IMMUNITY_from_termination));
                     end
                 `endif
 
@@ -514,17 +514,17 @@ module buggy_contract #(
         end else begin
             case (contract_state)
                 STATE_ACTIVE: begin
-                    if (clause_5_initiates_termination) begin
+                    if (c5_provider_tryto_terminate) begin
                         contract_state <= STATE_TERMINATED;
-                    end else if (clause_2_initiates_default_notice) begin
+                    end else if (c2_provider_tryto_serve_default_notice) begin
                         contract_state <= STATE_DEFAULT_NOTICE;
                     end
                 end
 
                 STATE_DEFAULT_NOTICE: begin
-                    if (clause_5_initiates_termination) begin
+                    if (c5_provider_tryto_terminate) begin
                         contract_state <= STATE_TERMINATED;
-                    end else if (clause_4_restitutes_to_active) begin
+                    end else if (c4_client_tryto_reinstate_to_active) begin
                         contract_state <= STATE_ACTIVE;
                     end
                 end
@@ -553,29 +553,29 @@ module buggy_contract #(
                 // ASSERT 1 (Borrower Due Process - No Peacetime Ambush):
                 // "The Lender CANNOT have the right to terminate while the contract
                 //  is in Active good standing!"
-                if ((contract_state == STATE_ACTIVE) && (clause_3_consecutive_default_count == 8'd0)) begin
-                    assert (!clause_5_provider_right_to_terminate);
-                    assert (clause_5_provider_termination_prohibited);
+                if ((contract_state == STATE_ACTIVE) && (c3_consecutive_default_count == 8'd0)) begin
+                    assert (!c5_provider_POWER_to_terminate);
+                    assert (c5_client_IMMUNITY_from_termination);
                 end
 
                 // ASSERT 2 (Borrower Sacred Grace - Mutual Exclusivity):
                 // "If the Borrower has the legal right to cure, the Lender
                 //  CANNOT simultaneously have the legal right to terminate!"
-                if (clause_3_client_right_to_cure) begin
-                    assert (!clause_5_provider_right_to_terminate);
-                    assert (clause_5_provider_termination_prohibited);
+                if (c3_client_POWER_to_cure) begin
+                    assert (!c5_provider_POWER_to_terminate);
+                    assert (c5_client_IMMUNITY_from_termination);
                 end
 
                 // ASSERT 3 (Borrower Performance Immunity):
                 // "Timely payment on the due date strictly guarantees no default."
-                if ($past(clause_1_client_duty_to_pay_today) && $past(fact_client_pays_on_due_date)) begin
-                    assert (!$past(clause_1_payment_default_active));
+                if ($past(c1_client_DUTY_to_pay) && $past(fact_client_pays_on_due_date)) begin
+                    assert (!$past(c1_fact_payment_default_active));
                 end
 
                 // ASSERT 4 (Lender Remedy Certainty - Timer Expiry):
                 // "When the grace period expires without cure, the Lender MUST have the right to terminate."
-                if (clause_2_in_default_notice_status && (clause_3_days_left_in_cure_period == 8'd0)) begin
-                    assert (clause_5_provider_right_to_terminate);
+                if (c2_in_default_notice_status && (c3_days_left_in_cure_period == 8'd0)) begin
+                    assert (c5_provider_POWER_to_terminate);
                 end
 
                 // ASSERT 5 (Borrower Finality - Non-Resurrection):
@@ -583,7 +583,7 @@ module buggy_contract #(
                 if ($past(contract_state == STATE_TERMINATED)) begin
                     assert (contract_state == STATE_TERMINATED);
                     assert (contract_state != STATE_ACTIVE);
-                    assert (!clause_2_in_default_notice_status);
+                    assert (!c2_in_default_notice_status);
                 end
 
 
@@ -595,16 +595,16 @@ module buggy_contract #(
                 // "Can both parties perform on the due date peacefully and stay in good standing?"
                 cover (
                     (contract_state == STATE_ACTIVE) &&
-                    $past(clause_1_client_duty_to_pay_today) &&
+                    $past(c1_client_DUTY_to_pay) &&
                     $past(fact_client_pays_on_due_date)
                 );
 
                 // SCENARIO 2 (The Borrower's Due Process Pathway):
                 // "Can a Client who defaulted successfully cure and restore the contract to Active?"
                 cover (
-                    clause_2_in_default_notice_status &&
+                    c2_in_default_notice_status &&
                     fact_client_cures_default &&
-                    clause_4_client_entitled_to_active_restitution
+                    c4_client_CLAIM_to_active_reinstatement
                 );
 
                 // SCENARIO 3 (The Unilateral Termination Test):
