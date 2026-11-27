@@ -27,7 +27,9 @@ module gentle_murder (
     output CitizenStanding citizen_standing,
     output logic           citizen_IMMUNITY_from_punishment,
     output logic           state_POWER_to_punish_basic,
-    output logic           state_POWER_to_punish_aggravated
+    output logic           state_POWER_to_punish_aggravated,
+    output logic           citizen_DUTY_to_kill,
+    output logic           citizen_DUTY_to_kill_gently
 );
 
     // ========================================================================
@@ -36,7 +38,12 @@ module gentle_murder (
     always_comb begin
         // 1. Classify Legal Standing:
         citizen_standing = STANDING_INNOCENT; // Default to Innocent
+        citizen_DUTY_to_kill = 1'b0; // There is always no duty to kill
+        citizen_DUTY_to_kill_gently = 1'b0; // There is always no duty to kill gently
         if (fact_citizen_kills) begin
+            // UNCOMMENT the following line to trigger paradox
+            // citizen_DUTY_to_kill = 1'b1; // If the citizen kills, then they have a duty to kill,
+            // an error of drafting by Forrester. That's why it is a paradox! will be caught by SimbiYosys.
             citizen_standing = fact_killing_is_gentle ?
                                STANDING_GUILTY_BASIC_MURDER :
                                STANDING_GUILTY_AGGRAVATED_MURDER;
@@ -75,6 +82,11 @@ module gentle_murder (
                 assert (citizen_standing == STANDING_GUILTY_AGGRAVATED_MURDER);
                 assert (state_POWER_to_punish_aggravated);
             end
+
+            // THEOREM 4 (The Paradox Invariant):
+            // Under NO circumstances does a citizen EVER have a duty to kill!
+            assert (citizen_DUTY_to_kill == 1'b0);
+            assert (citizen_DUTY_to_kill_gently == 1'b0);
         end
     `endif
 
