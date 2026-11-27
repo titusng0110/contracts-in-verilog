@@ -1,5 +1,5 @@
 // ============================================================================
-// File:        gentle_murder.sv
+// File:        forrester_gentle_murder.sv
 // Author:      Titus Ng (Ng Tsz Hin)
 // Description: Pure 0 Hz Combinational Decoder for Forrester's Paradox (1984)
 // Architecture: Substantive Criminal Classification (No Clocks, No Dummy Pins)
@@ -14,7 +14,7 @@ typedef enum logic [1:0] {
     STANDING_GUILTY_AGGRAVATED_MURDER = 2'b10
 } CitizenStanding;
 
-module gentle_murder (
+module forrester_gentle_murder (
     // ========================================================================
     // EMPIRICAL INPUTS (Sein - What happened in the real world)
     // ========================================================================

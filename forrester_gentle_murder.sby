@@ -1,0 +1,16 @@
+[tasks]
+audit_bmc
+
+[options]
+audit_bmc: mode bmc
+depth 20
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal forrester_gentle_murder.sv
+prep -top forrester_gentle_murder
+
+[files]
+forrester_gentle_murder.sv

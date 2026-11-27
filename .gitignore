@@ -16,10 +16,12 @@ obj_dir/
 # Work directories created during formal verification runs
 buggy_contract/
 buggy_contract_*/
-gentle_murder/
-gentle_murder_*/
+forrester_gentle_murder/
+forrester_gentle_murder_*/
 governatori_privacy_act/
 governatori_privacy_act_*/
+chisholm_contrary_to_duty/
+chisholm_contrary_to_duty_*/
 
 # Generic SBY task directories (BMC, Cover, Prove)
 *_bmc/
